@@ -6,8 +6,6 @@
 /.psc-package/
 /.spago/
 /deprecated/
-/dist/chordeditor.js
-/dist/chordeditormin.js
 /.psc*
 /.purs*
 /.psa*
