@@ -1,0 +1,579 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Piano Chord Diagram Editor</title>
+<style>
+  :root {
+    --bg: #1a1a1a;
+    --surface: #242424;
+    --surface2: #2e2e2e;
+    --border: #3a3a3a;
+    --accent: #c8a96e;
+    --accent-dim: #8a7249;
+    --text: #e8e0d0;
+    --text-dim: #7a7268;
+    --key-white: #f5f0e8;
+    --key-black: #1c1c1c;
+    --key-active: #c8a96e;
+    --key-white-border: #c8bfb0;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Georgia', serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 2rem 1rem;
+    gap: 2rem;
+  }
+
+  h1 {
+    font-size: 1.1rem;
+    font-weight: normal;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    color: var(--accent);
+    opacity: 0.9;
+  }
+
+  .workspace {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1.5rem;
+    width: 100%;
+    max-width: 640px;
+  }
+
+  /* ── Controls ── */
+  .controls {
+    display: flex;
+    gap: 0.75rem;
+    align-items: center;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .controls label {
+    font-size: 0.75rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+  }
+
+  input[type="text"] {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: inherit;
+    font-size: 1rem;
+    padding: 0.4rem 0.75rem;
+    border-radius: 3px;
+    width: 160px;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  input[type="text"]:focus { border-color: var(--accent); }
+
+  .btn {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: inherit;
+    font-size: 0.78rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 0.4rem 0.9rem;
+    border-radius: 3px;
+    cursor: pointer;
+    transition: border-color 0.2s, color 0.2s;
+  }
+  .btn:hover { border-color: var(--accent); color: var(--accent); }
+  .btn.primary {
+    background: var(--accent-dim);
+    border-color: var(--accent);
+    color: #1a1a1a;
+    font-weight: bold;
+  }
+  .btn.primary:hover { background: var(--accent); }
+
+  /* ── Octave selector ── */
+  .octave-row {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    font-size: 0.78rem;
+    color: var(--text-dim);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  .octave-row button {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    width: 26px; height: 26px;
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 1rem;
+    line-height: 1;
+    transition: border-color 0.2s, color 0.2s;
+  }
+  .octave-row button:hover { border-color: var(--accent); color: var(--accent); }
+  #octave-display {
+    min-width: 2rem;
+    text-align: center;
+    color: var(--text);
+    font-size: 0.9rem;
+  }
+
+  /* ── Piano keyboard ── */
+  #keyboard-wrap {
+    position: relative;
+    user-select: none;
+    filter: drop-shadow(0 4px 20px rgba(0,0,0,0.6));
+  }
+
+  .piano-key {
+    cursor: pointer;
+    transition: fill 0.12s;
+  }
+  .piano-key:hover { opacity: 0.85; }
+
+  /* ── Diagram preview ── */
+  .diagram-wrap {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 1.5rem 2rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+    min-width: 260px;
+  }
+
+  .diagram-wrap h2 {
+    font-size: 0.7rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin-bottom: 0.25rem;
+  }
+
+  #diagram-svg {
+    display: block;
+  }
+
+  /* ── Note list ── */
+  .note-list {
+    display: flex;
+    gap: 0.4rem;
+    flex-wrap: wrap;
+    justify-content: center;
+    min-height: 1.5rem;
+  }
+  .note-pill {
+    background: var(--accent-dim);
+    color: #1a1a1a;
+    font-size: 0.7rem;
+    font-weight: bold;
+    letter-spacing: 0.05em;
+    padding: 0.2rem 0.5rem;
+    border-radius: 2px;
+  }
+
+  /* ── Status ── */
+  #status {
+    font-size: 0.72rem;
+    color: var(--text-dim);
+    letter-spacing: 0.06em;
+    min-height: 1rem;
+    text-align: center;
+  }
+</style>
+</head>
+<body>
+
+<h1>Piano Chord Diagram Editor</h1>
+
+<div class="workspace">
+
+  <div class="controls">
+    <label>Chord name</label>
+    <input type="text" id="chord-name" placeholder="e.g. Cmaj7" maxlength="24">
+    <button class="btn" id="btn-clear">Clear</button>
+    <button class="btn primary" id="btn-export">Export SVG</button>
+  </div>
+
+  <div class="octave-row">
+    <span>Octave</span>
+    <button id="oct-down">−</button>
+    <span id="octave-display">4</span>
+    <button id="oct-up">+</button>
+    <span style="color:var(--text-dim);font-size:0.68rem">(click keys to add/remove notes)</span>
+  </div>
+
+  <!-- Interactive keyboard -->
+  <div id="keyboard-wrap">
+    <svg id="keyboard-svg" xmlns="http://www.w3.org/2000/svg"></svg>
+  </div>
+
+  <!-- Live diagram -->
+  <div class="diagram-wrap">
+    <h2>Diagram Preview</h2>
+    <div class="note-list" id="note-list"></div>
+    <svg id="diagram-svg" xmlns="http://www.w3.org/2000/svg"></svg>
+    <div id="status">Click keys above to build your chord</div>
+  </div>
+
+</div>
+
+<script>
+// ── Constants ──────────────────────────────────────────────────────────────
+
+const WHITE_W = 36, WHITE_H = 130, BLACK_W = 22, BLACK_H = 80;
+const KEYS_PER_OCTAVE = 12; // chromatic
+const WHITES_PER_OCTAVE = 7;
+const NUM_OCTAVES = 2;       // show 2 octaves on the keyboard
+
+// note index within octave (0=C) → is black?
+const IS_BLACK = [false,true,false,true,false,false,true,false,true,false,true,false];
+// note name (sharps)
+const NOTE_NAMES = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+
+// Black key x-offsets as fraction of white key width, within each octave white pattern
+// White keys within octave: C D E F G A B → positions 0-6
+const BLACK_X_FRACTION = {1:0.6, 3:1.6, 6:3.6, 8:4.55, 10:5.6}; // chromatic → fraction of WHITE_W from octave start
+
+// ── State ─────────────────────────────────────────────────────────────────
+
+let baseOctave = 4;
+const selectedNotes = new Set(); // keys: "C4", "E4", etc.
+
+// ── Keyboard render ────────────────────────────────────────────────────────
+
+function buildKeyboard() {
+  const svg = document.getElementById('keyboard-svg');
+  svg.innerHTML = '';
+
+  const totalWhites = WHITES_PER_OCTAVE * NUM_OCTAVES;
+  const W = totalWhites * WHITE_W + 1;
+  const H = WHITE_H + 2;
+  svg.setAttribute('width', W);
+  svg.setAttribute('height', H);
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+
+  // Draw white keys first, then black on top
+  const whites = [], blacks = [];
+
+  let whiteX = 0;
+  for (let oct = 0; oct < NUM_OCTAVES; oct++) {
+    const octaveNum = baseOctave + oct;
+    let octaveWhiteIdx = 0;
+    for (let semi = 0; semi < KEYS_PER_OCTAVE; semi++) {
+      const noteName = NOTE_NAMES[semi] + octaveNum;
+      const active = selectedNotes.has(noteName);
+      if (!IS_BLACK[semi]) {
+        whites.push({x: whiteX, semi, octaveNum, noteName, active});
+        whiteX += WHITE_W;
+        octaveWhiteIdx++;
+      }
+    }
+  }
+
+  // Recalculate black key positions
+  whiteX = 0;
+  let whiteCount = 0;
+  for (let oct = 0; oct < NUM_OCTAVES; oct++) {
+    const octaveNum = baseOctave + oct;
+    let octWhite = 0;
+    const octStartX = oct * WHITES_PER_OCTAVE * WHITE_W;
+    for (let semi = 0; semi < KEYS_PER_OCTAVE; semi++) {
+      const noteName = NOTE_NAMES[semi] + octaveNum;
+      const active = selectedNotes.has(noteName);
+      if (IS_BLACK[semi]) {
+        const bx = octStartX + BLACK_X_FRACTION[semi] * WHITE_W;
+        blacks.push({x: bx, semi, octaveNum, noteName, active});
+      }
+    }
+  }
+
+  // Render whites
+  for (const k of whites) {
+    const rect = document.createElementNS('http://www.w3.org/2000/svg','rect');
+    rect.setAttribute('x', k.x + 0.5);
+    rect.setAttribute('y', 0.5);
+    rect.setAttribute('width', WHITE_W - 1);
+    rect.setAttribute('height', WHITE_H);
+    rect.setAttribute('rx', 3);
+    rect.setAttribute('fill', k.active ? 'var(--key-active)' : 'var(--key-white)');
+    rect.setAttribute('stroke', 'var(--key-white-border)');
+    rect.setAttribute('stroke-width', '1');
+    rect.setAttribute('class', 'piano-key');
+    rect.dataset.note = k.noteName;
+    rect.addEventListener('click', toggleNote);
+    svg.appendChild(rect);
+
+    // Note label at bottom
+    const txt = document.createElementNS('http://www.w3.org/2000/svg','text');
+    txt.setAttribute('x', k.x + WHITE_W / 2);
+    txt.setAttribute('y', WHITE_H - 6);
+    txt.setAttribute('text-anchor', 'middle');
+    txt.setAttribute('font-size', '9');
+    txt.setAttribute('font-family', 'Georgia, serif');
+    txt.setAttribute('fill', k.active ? '#1a1a1a' : '#999');
+    txt.setAttribute('pointer-events', 'none');
+    txt.textContent = NOTE_NAMES[k.semi];
+    svg.appendChild(txt);
+  }
+
+  // Render blacks
+  for (const k of blacks) {
+    const rect = document.createElementNS('http://www.w3.org/2000/svg','rect');
+    rect.setAttribute('x', k.x);
+    rect.setAttribute('y', 0.5);
+    rect.setAttribute('width', BLACK_W);
+    rect.setAttribute('height', BLACK_H);
+    rect.setAttribute('rx', 2);
+    rect.setAttribute('fill', k.active ? 'var(--key-active)' : 'var(--key-black)');
+    rect.setAttribute('stroke', '#000');
+    rect.setAttribute('stroke-width', '1');
+    rect.setAttribute('class', 'piano-key');
+    rect.dataset.note = k.noteName;
+    rect.addEventListener('click', toggleNote);
+    svg.appendChild(rect);
+  }
+}
+
+function toggleNote(e) {
+  const note = e.currentTarget.dataset.note;
+  if (selectedNotes.has(note)) selectedNotes.delete(note);
+  else selectedNotes.add(note);
+  buildKeyboard();
+  renderDiagram();
+}
+
+// ── Diagram render ─────────────────────────────────────────────────────────
+// Shows a compact piano strip with highlighted keys, chord name above,
+// note names below. Classic "piano chord chart" style.
+
+function renderDiagram() {
+  const svg = document.getElementById('diagram-svg');
+  const nameEl = document.getElementById('chord-name');
+  const statusEl = document.getElementById('status');
+  const noteListEl = document.getElementById('note-list');
+  svg.innerHTML = '';
+
+  // Sort selected notes by MIDI pitch
+  const notes = [...selectedNotes].sort((a, b) => noteToMidi(a) - noteToMidi(b));
+
+  // Update pill list
+  noteListEl.innerHTML = notes.map(n =>
+    `<span class="note-pill">${n}</span>`
+  ).join('');
+
+  if (notes.length === 0) {
+    svg.setAttribute('width', 200);
+    svg.setAttribute('height', 10);
+    statusEl.textContent = 'Click keys above to build your chord';
+    return;
+  }
+  statusEl.textContent = notes.length === 1 ? '1 note selected' : `${notes.length} notes selected`;
+
+  // Determine the midi range to show — always show full octaves containing selected notes
+  const midiNotes = notes.map(noteToMidi);
+  const minMidi = Math.min(...midiNotes);
+  const maxMidi = Math.max(...midiNotes);
+  // Snap to octave boundaries (C to B)
+  const startOct = Math.floor((minMidi - 12) / 12); // midi 12 = C0
+  const endOct   = Math.floor((maxMidi - 12) / 12);
+  const startMidi = (startOct) * 12 + 12; // C of start octave
+  const numOctaves = endOct - startOct + 1;
+
+  // Layout constants for diagram
+  const DW = 14, DWH = 60, DBW = 9, DBH = 36;
+  const PAD_LEFT = 12, PAD_TOP = 32, PAD_BOTTOM = 20;
+  const totalWhites = numOctaves * 7;
+  const svgW = totalWhites * DW + PAD_LEFT * 2;
+  const svgH = PAD_TOP + DWH + PAD_BOTTOM + 14; // extra for note labels
+
+  svg.setAttribute('width', svgW);
+  svg.setAttribute('height', svgH);
+  svg.setAttribute('viewBox', `0 0 ${svgW} ${svgH}`);
+  svg.style.background = 'none';
+
+  const chordName = nameEl.value.trim() || '';
+
+  // Background
+  const bg = document.createElementNS('http://www.w3.org/2000/svg','rect');
+  bg.setAttribute('width', svgW); bg.setAttribute('height', svgH);
+  bg.setAttribute('fill', '#ffffff');
+  bg.setAttribute('rx', 4);
+  svg.appendChild(bg);
+
+  // Chord name
+  if (chordName) {
+    const t = document.createElementNS('http://www.w3.org/2000/svg','text');
+    t.setAttribute('x', svgW / 2);
+    t.setAttribute('y', 18);
+    t.setAttribute('text-anchor', 'middle');
+    t.setAttribute('font-size', '14');
+    t.setAttribute('font-family', 'Georgia, serif');
+    t.setAttribute('font-weight', 'bold');
+    t.setAttribute('fill', '#1a1a1a');
+    t.textContent = chordName;
+    svg.appendChild(t);
+  }
+
+  // Build diagram keys
+  const diagWhites = [], diagBlacks = [];
+  let wx = PAD_LEFT;
+
+  for (let oct = 0; oct < numOctaves; oct++) {
+    const octStartX = PAD_LEFT + oct * 7 * DW;
+    for (let semi = 0; semi < 12; semi++) {
+      const midi = startMidi + oct * 12 + semi;
+      const active = midiNotes.includes(midi);
+      const noteName = NOTE_NAMES[semi];
+      if (!IS_BLACK[semi]) {
+        diagWhites.push({x: wx, midi, active, noteName});
+        wx += DW;
+      } else {
+        const bx = octStartX + BLACK_X_FRACTION[semi] * DW;
+        diagBlacks.push({x: bx, midi, active, noteName});
+      }
+    }
+  }
+
+  // Outer border
+  const border = document.createElementNS('http://www.w3.org/2000/svg','rect');
+  border.setAttribute('x', PAD_LEFT - 0.5);
+  border.setAttribute('y', PAD_TOP - 0.5);
+  border.setAttribute('width', totalWhites * DW + 1);
+  border.setAttribute('height', DWH + 1);
+  border.setAttribute('fill', 'none');
+  border.setAttribute('stroke', '#333');
+  border.setAttribute('stroke-width', '1.5');
+  svg.appendChild(border);
+
+  // White keys
+  for (const k of diagWhites) {
+    const r = document.createElementNS('http://www.w3.org/2000/svg','rect');
+    r.setAttribute('x', k.x + 0.5);
+    r.setAttribute('y', PAD_TOP);
+    r.setAttribute('width', DW - 1);
+    r.setAttribute('height', DWH);
+    r.setAttribute('fill', k.active ? '#c8a96e' : '#f5f0e8');
+    r.setAttribute('stroke', '#ccc');
+    r.setAttribute('stroke-width', '0.5');
+    svg.appendChild(r);
+
+    // Note label below diagram
+    if (k.active) {
+      const t = document.createElementNS('http://www.w3.org/2000/svg','text');
+      t.setAttribute('x', k.x + DW / 2);
+      t.setAttribute('y', PAD_TOP + DWH + 11);
+      t.setAttribute('text-anchor', 'middle');
+      t.setAttribute('font-size', '7');
+      t.setAttribute('font-family', 'Georgia, serif');
+      t.setAttribute('fill', '#333');
+      t.textContent = k.noteName;
+      svg.appendChild(t);
+    }
+  }
+
+  // Black keys
+  for (const k of diagBlacks) {
+    const r = document.createElementNS('http://www.w3.org/2000/svg','rect');
+    r.setAttribute('x', k.x);
+    r.setAttribute('y', PAD_TOP);
+    r.setAttribute('width', DBW);
+    r.setAttribute('height', DBH);
+    r.setAttribute('fill', k.active ? '#c8a96e' : '#1c1c1c');
+    r.setAttribute('stroke', '#000');
+    r.setAttribute('stroke-width', '0.5');
+    svg.appendChild(r);
+
+    if (k.active) {
+      const t = document.createElementNS('http://www.w3.org/2000/svg','text');
+      t.setAttribute('x', k.x + DBW / 2);
+      t.setAttribute('y', PAD_TOP + DWH + 11);
+      t.setAttribute('text-anchor', 'middle');
+      t.setAttribute('font-size', '7');
+      t.setAttribute('font-family', 'Georgia, serif');
+      t.setAttribute('fill', '#333');
+      t.textContent = k.noteName;
+      svg.appendChild(t);
+    }
+  }
+}
+
+// ── Helpers ────────────────────────────────────────────────────────────────
+
+function noteToMidi(noteName) {
+  // e.g. "C#4" → parse
+  const match = noteName.match(/^([A-G]#?)(\d+)$/);
+  if (!match) return 0;
+  const semi = NOTE_NAMES.indexOf(match[1]);
+  const oct = parseInt(match[2], 10);
+  return (oct + 1) * 12 + semi;
+}
+
+// ── Export ─────────────────────────────────────────────────────────────────
+
+function exportSVG() {
+  const svg = document.getElementById('diagram-svg');
+  if (!svg.querySelector('rect')) return;
+  const src = new XMLSerializer().serializeToString(svg);
+  const blob = new Blob([src], {type: 'image/svg+xml'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  const name = document.getElementById('chord-name').value.trim() || 'chord';
+  a.href = url;
+  a.download = name.replace(/[^a-zA-Z0-9_#b]/g, '_') + '_diagram.svg';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ── Event wiring ───────────────────────────────────────────────────────────
+
+document.getElementById('btn-clear').addEventListener('click', () => {
+  selectedNotes.clear();
+  buildKeyboard();
+  renderDiagram();
+});
+
+document.getElementById('btn-export').addEventListener('click', exportSVG);
+
+document.getElementById('oct-up').addEventListener('click', () => {
+  if (baseOctave < 7) {
+    baseOctave++;
+    document.getElementById('octave-display').textContent = baseOctave;
+    buildKeyboard();
+  }
+});
+
+document.getElementById('oct-down').addEventListener('click', () => {
+  if (baseOctave > 0) {
+    baseOctave--;
+    document.getElementById('octave-display').textContent = baseOctave;
+    buildKeyboard();
+  }
+});
+
+document.getElementById('chord-name').addEventListener('input', renderDiagram);
+
+// ── Init ───────────────────────────────────────────────────────────────────
+
+buildKeyboard();
+renderDiagram();
+</script>
+</body>
+</html>
